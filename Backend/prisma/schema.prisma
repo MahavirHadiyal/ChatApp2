@@ -1,0 +1,130 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum FriendshipStatus {
+  pending
+  accepted
+  rejected
+}
+
+model User {
+  id          Int    @id @default(autoincrement())
+  connectCode String @unique
+  fullName    String
+  username    String @unique
+  email       String @unique
+  password    String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messagesSent Message[]
+
+  friendshipsRequested Friendship[] @relation("Requester")
+  friendshipsReceived  Friendship[] @relation("Recipient")
+
+  conversationParticipants ConversationParticipant[]
+  readMessages             MessageRead[]
+  conversationUnreads      ConversationUnread[]
+}
+
+model Friendship {
+  id Int @id @default(autoincrement())
+
+  requesterId Int
+  recipientId Int
+
+  requester User @relation("Requester", fields: [requesterId], references: [id])
+  recipient User @relation("Recipient", fields: [recipientId], references: [id])
+
+  status FriendshipStatus @default(pending)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([requesterId, recipientId])
+}
+
+model Conversation {
+  id Int @id @default(autoincrement())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  participants ConversationParticipant[]
+  messages     Message[]
+
+  lastMessageId Int?
+  lastMessage   Message? @relation("LastMessage", fields: [lastMessageId], references: [id])
+
+  lastMessageContent   String?
+  lastMessageTimestamp DateTime?
+
+  unreadCounts ConversationUnread[]
+}
+
+model ConversationParticipant {
+  id Int @id @default(autoincrement())
+
+  conversationId Int
+  userId         Int
+
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@unique([conversationId, userId])
+}
+
+model ConversationUnread {
+  id Int @id @default(autoincrement())
+
+  conversationId Int
+  userId         Int
+
+  unreadCount Int @default(0)
+
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@unique([conversationId, userId])
+}
+
+model Message {
+  id Int @id @default(autoincrement())
+
+  conversationId Int
+  senderId       Int
+
+  content String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+  sender       User         @relation(fields: [senderId], references: [id])
+
+  readBy MessageRead[]
+
+  lastMessageFor Conversation[] @relation("LastMessage")
+
+  @@index([conversationId, createdAt])
+  @@index([senderId, createdAt])
+}
+
+model MessageRead {
+  id Int @id @default(autoincrement())
+
+  messageId Int
+  userId    Int
+
+  message Message @relation(fields: [messageId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@unique([messageId, userId])
+}
